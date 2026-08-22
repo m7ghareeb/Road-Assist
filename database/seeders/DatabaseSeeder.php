@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Customer;
-use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -25,6 +24,6 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         Customer::factory(4)->create();
-        Driver::factory(4)->create();
+        $this->call(DriverSeeder::class);
     }
 }
