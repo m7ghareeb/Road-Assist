@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TowType;
 use App\Enums\TripStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['customer_id', 'driver_id', 'latitude', 'longitude', 'type', 'status'])]
+#[Fillable(['customer_id', 'driver_id', 'pickup_latitude', 'pickup_longitude', 'type', 'status', 'idempotency_key'])]
 class Trip extends Model
 {
     use HasFactory;
@@ -17,9 +18,10 @@ class Trip extends Model
     protected function casts(): array
     {
         return [
-            'latitude'  => 'decimal:7',
-            'longitude' => 'decimal:7',
-            'status'    => TripStatus::class,
+            'pickup_latitude'  => 'decimal:7',
+            'pickup_longitude' => 'decimal:7',
+            'status'           => TripStatus::class,
+            'type'             => TowType::class,
         ];
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TowType;
 use App\Enums\TripStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -16,13 +17,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('customer_id')->constrained();
             $table->foreignId('driver_id')->nullable()->constrained();
-            $table->decimal('latitude', 10, 7);
-            $table->decimal('longitude', 10, 7);
-            $table->string('type')->default('towing');
+            $table->decimal('pickup_latitude', 10, 7);
+            $table->decimal('pickup_longitude', 10, 7);
+            $table->string('type', 20)->default(TowType::Normal->value);
             $table->string('status', 20)->default(TripStatus::Searching->value);
+            $table->uuid('idempotency_key');
             $table->timestamps();
 
-            $table->index('customer_id');
+            $table->unique(['customer_id', 'idempotency_key']);
         });
     }
 

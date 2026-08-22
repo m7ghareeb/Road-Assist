@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\TowType;
 use App\Enums\TripStatus;
 use App\Models\Customer;
 use App\Models\Driver;
@@ -21,12 +22,12 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
-            'customer_id' => Customer::factory(),
-            'driver_id'   => Driver::factory(),
-            'latitude'    => $this->faker->latitude(),
-            'longitude'   => $this->faker->longitude(),
-            'type'        => $this->faker->randomElement(['towing', 'repair']),
-            'status'      => $this->faker->randomElement(TripStatus::cases()),
+            'customer_id'      => Customer::factory(),
+            'driver_id'        => Driver::factory(),
+            'pickup_latitude'  => $this->faker->latitude(),
+            'pickup_longitude' => $this->faker->longitude(),
+            'type'             => $this->faker->randomElement(TowType::cases()),
+            'status'           => $this->faker->randomElement(TripStatus::cases()),
         ];
     }
 }
