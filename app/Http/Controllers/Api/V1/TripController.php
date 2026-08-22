@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Trips\AcceptTrip;
 use App\Actions\Trips\CreateTrip;
+use App\Actions\Trips\UpdateTripStatus;
+use App\Enums\TripStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\AcceptTripRequest;
 use App\Http\Requests\Api\V1\StoreTripRequest;
+use App\Http\Requests\Api\V1\UpdateTripStatusRequest;
 use App\Http\Resources\V1\TripResource;
 use App\Models\Driver;
 use App\Models\Trip;
-use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
@@ -21,9 +23,11 @@ class TripController extends Controller
         return TripResource::make($trip);
     }
 
-    public function show($tripId)
+    public function show(Trip $trip)
     {
-        // Logic to retrieve trip details by ID
+        $trip->load(['driver', 'customer']);
+
+        return TripResource::make($trip);
     }
 
     public function accept(AcceptTripRequest $request, Trip $trip)
@@ -35,8 +39,12 @@ class TripController extends Controller
         return TripResource::make($trip);
     }
 
-    public function updateStatus(Request $request, $tripId)
+    public function updateStatus(UpdateTripStatusRequest $request, Trip $trip)
     {
-        // Logic to update the status of a trip
+        $status = TripStatus::from($request->validated('status'));
+
+        $trip = UpdateTripStatus::handle($trip, $status);
+
+        return TripResource::make($trip);
     }
 }
