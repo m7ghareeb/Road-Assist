@@ -10,14 +10,14 @@ class DriverResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'   => $this->id,
-            'name' => $this->name,
+            'id'       => $this->id,
+            'name'     => $this->name,
             'location' => [
                 'latitude'  => $this->latitude ?? null,
                 'longitude' => $this->longitude ?? null,
             ],
-            'status' => $this->status,
-            'distance' => $this->when(isset($this->distance), fn() => $this->formatDistance($this->distance)),
+            'status'   => $this->status,
+            'distance' => $this->when(isset($this->distance), fn () => $this->formatDistance($this->distance)),
         ];
     }
 

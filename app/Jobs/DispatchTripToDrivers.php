@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Actions\Drivers\FindNearbyDriversAction;
-use App\Enums\DriverStatus;
 use App\Enums\TripOfferStatus;
 use App\Enums\TripStatus;
 use App\Models\Trip;
@@ -17,6 +16,7 @@ class DispatchTripToDrivers implements ShouldQueue
     use Queueable;
 
     public int $tries = 3;
+
     public int $backoff = 5;
 
     public function __construct(public int $tripId) {}

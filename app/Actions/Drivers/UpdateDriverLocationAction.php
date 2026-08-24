@@ -6,7 +6,7 @@ use App\Models\Driver;
 
 final class UpdateDriverLocationAction
 {
-     public static function handle(Driver $driver, float $latitude, float $longitude): Driver
+    public static function handle(Driver $driver, float $latitude, float $longitude): Driver
     {
         Driver::query()
             ->where('id', $driver->id)

@@ -9,7 +9,9 @@ use Illuminate\Support\Collection;
 final class FindNearbyDriversAction
 {
     private const EARTH_RADIUS_KM = 6371; // the average radius of the Earth in kilometers
+
     public const DEFAULT_RADIUS_KM = 5; // simulate as getting from a config file or settings
+
     public const DEFAULT_LIMIT = 5; // simulate as getting from a config file or settings
 
     public static function handle(
