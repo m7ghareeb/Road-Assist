@@ -18,8 +18,8 @@ class Trip extends Model
     protected function casts(): array
     {
         return [
-            'pickup_latitude'  => 'decimal:7',
-            'pickup_longitude' => 'decimal:7',
+            'pickup_latitude'  => 'float',
+            'pickup_longitude' => 'float',
             'status'           => TripStatus::class,
             'type'             => TowType::class,
         ];

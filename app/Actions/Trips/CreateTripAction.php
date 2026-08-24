@@ -9,7 +9,7 @@ use App\Models\Trip;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
-final class CreateTrip
+final class CreateTripAction
 {
     public static function handle(array $data): Trip
     {

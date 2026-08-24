@@ -12,7 +12,7 @@ use App\Models\Trip;
 use App\Models\TripDriverOffer;
 use Illuminate\Support\Facades\DB;
 
-final class AcceptTrip
+final class AcceptTripAction
 {
     public static function handle(Trip $trip, Driver $driver): Trip
     {

@@ -9,7 +9,7 @@ use App\Models\Driver;
 use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
 
-final class UpdateTripStatus
+final class UpdateTripStatusAction
 {
     public static function handle(Trip $trip, TripStatus $to): Trip
     {

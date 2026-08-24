@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Actions\Trips\AcceptTrip;
-use App\Actions\Trips\CreateTrip;
-use App\Actions\Trips\UpdateTripStatus;
+use App\Actions\Trips\AcceptTripAction;
+use App\Actions\Trips\CreateTripAction;
+use App\Actions\Trips\UpdateTripStatusAction;
 use App\Enums\TripStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\AcceptTripRequest;
@@ -18,9 +18,11 @@ class TripController extends Controller
 {
     public function store(StoreTripRequest $request)
     {
-        $trip = CreateTrip::handle($request->validated());
+        $trip = CreateTripAction::handle($request->validated());
 
-        return TripResource::make($trip);
+        return TripResource::make($trip)
+            ->response()
+            ->setStatusCode($trip->wasRecentlyCreated ? 201 : 200); // because the idempotent action may return an existing trip if the same request is made again
     }
 
     public function show(Trip $trip)
@@ -34,7 +36,7 @@ class TripController extends Controller
     {
         $driver = Driver::findOrFail($request->validated('driver_id'));
 
-        $trip = AcceptTrip::handle($trip, $driver);
+        $trip = AcceptTripAction::handle($trip, $driver);
 
         return TripResource::make($trip);
     }
@@ -43,7 +45,7 @@ class TripController extends Controller
     {
         $status = TripStatus::from($request->validated('status'));
 
-        $trip = UpdateTripStatus::handle($trip, $status);
+        $trip = UpdateTripStatusAction::handle($trip, $status);
 
         return TripResource::make($trip);
     }

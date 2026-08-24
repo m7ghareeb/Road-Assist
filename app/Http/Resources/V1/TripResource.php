@@ -14,14 +14,14 @@ class TripResource extends JsonResource
             'status' => $this->status,
             'type'   => $this->type,
             'pickup' => [
-                'latitude'  => (float) $this->pickup_latitude,
-                'longitude' => (float) $this->pickup_longitude,
+                'latitude'  =>  $this->pickup_latitude ?? null,
+                'longitude' =>  $this->pickup_longitude ?? null,
             ],
-            'customer' => $this->whenLoaded('customer', fn () => [
+            'customer' => $this->whenLoaded('customer', fn() => [
                 'id'   => $this->customer?->id,
                 'name' => $this->customer?->name,
             ]),
-            'driver' => $this->whenLoaded('driver', fn () => [
+            'driver' => $this->whenLoaded('driver', fn() => [
                 'id'   => $this->driver?->id,
                 'name' => $this->driver?->name,
             ]),
