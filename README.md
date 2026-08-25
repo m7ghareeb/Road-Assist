@@ -17,6 +17,10 @@ simultaneously — drove most of the design below.
 composer install && cp .env.example .env && php artisan key:generate
 ```
 
+> `.env.example` ships `BROADCAST_CONNECTION=log`. **Set it to `reverb`** — the
+> `REVERB_*` credentials are already filled in, but without this line events
+> broadcast to the log file instead of the WebSocket server.
+
 ```sql
 CREATE DATABASE road_assist;
 CREATE DATABASE road_assist_testing;
@@ -56,6 +60,16 @@ takes precedence over any dotenv file.
 
 `REVERB_*` credentials are self-generated local values, not a paid Pusher
 account — Reverb is self-hosted and merely speaks the Pusher protocol.
+
+---
+
+## API Collection
+
+A ready-to-use Postman collection is included in the repository:
+
+[Open the Postman Collection](docs/RoadAssist.postman_collection.json)
+
+Import it into Postman to run the API locally.
 
 ---
 
@@ -233,21 +247,26 @@ sequenceDiagram
     participant API as Laravel
     participant PG as PostgreSQL
 
-    par Simultaneous
-        A->>API: accept
+    par Both accept at once
+        A->>API: POST /accept
     and
-        B->>API: accept
+        B->>API: POST /accept
     end
-    API->>PG: A · UPDATE ... WHERE status='searching'
-    PG-->>API: A · 1 row (lock held)
+
+    Note over API,PG: A acquires the row lock
+    API->>PG: A · UPDATE ... WHERE status = 'searching'
+    PG-->>API: A · 1 row affected
     API->>PG: B · same UPDATE
-    PG->>PG: B blocks on A's lock
+    PG->>PG: B blocks, waiting on A
     API->>PG: A · offers, driver, event · COMMIT
-    PG->>PG: B re-evaluates WHERE against<br/>committed row — no match
-    PG-->>API: B · 0 rows
+
+    Note over API,PG: B re-evaluates against the committed row
+    PG->>PG: status is now 'assigned' — predicate fails
+    PG-->>API: B · 0 rows affected
     API->>PG: B · ROLLBACK
-    API-->>A: 200
-    API-->>B: 409
+
+    API-->>A: 200 · assigned
+    API-->>B: 409 · already taken
 ```
 
 **Why not `lockForUpdate()`?** It works, but costs two round trips and holds the
@@ -368,6 +387,49 @@ switch, worker restart) renders correctly from the next event alone.
 minutes; an embedded coordinate is stale on arrival but *looks* live. Live
 tracking is a separate concern with a different cadence.
 
+### Queues — what's async, and what deliberately isn't
+
+| Work | Where | Why |
+|---|---|---|
+| Driver search + offer creation | `DispatchTripToDrivers` (queued) | A geo query shouldn't sit between the customer and their response |
+| Driver notifications | `NotifyDriverOfOffer`, one job per driver | Parallel sends; one failure doesn't take down the other four |
+| Broadcasts | Laravel's queued `BroadcastEvent` | A network call to Reverb stays off the response path |
+| **Trip creation** | **synchronous** | The customer needs the trip id back immediately |
+| **Accept** | **synchronous** | The driver needs an instant verdict — and queuing it would break the guarantee below |
+| **Status transitions** | **synchronous** | A single indexed write; queuing adds latency and buys nothing |
+
+**Accept is the one that must not be queued.** Pushing accepts onto a queue
+would serialise them through a worker, which *does* produce one winner — but the
+winner becomes "whoever the queue happened to process first," and the driver
+waits on queue depth to learn whether they got the job. The point is an
+immediate, database-arbitrated verdict.
+
+Both jobs use `$tries = 3` with `$backoff = 5`. `NotifyDriverOfOffer`'s body is
+a `Log::info` call — the brief permits mocked notifications, so the job
+structure, retries, and parallel fan-out are real while the push transport is
+deliberately stubbed.
+
+`QUEUE_CONNECTION=database` in development so jobs genuinely leave the request
+path; `sync` in tests so they run inline without a worker.
+
+### Coordinate precision
+
+Three separate layers, deliberately:
+
+| Layer | Value | Reason |
+|---|---|---|
+| Column | `decimal(10,7)` | ~1 cm — well beyond consumer GPS accuracy (~5 m) |
+| Model cast | `float` | Coordinates are numbers, not money |
+| API | JSON number | Follows from the cast; no per-Resource conversion |
+
+Laravel's `decimal:N` cast was tried and rejected: it returns a **string**,
+which leaked quoted coordinates (`"24.455000"`) into JSON and forced every
+Resource to convert. `float` is correct at this magnitude — doubles carry ~15
+significant digits against a coordinate's 10 — and the usual objection to float
+casts (compounding error when summing money) doesn't apply, since coordinates
+are never summed. The distance calculation runs in SQL against the raw column
+values and never touches the cast.
+
 ---
 
 ## Schema
@@ -392,6 +454,26 @@ status     pending|accepted|  to_status
 offered_at timestamp          created_at only — append-only
 UNIQUE (trip_id, driver_id)
 ```
+
+### Why two tables beyond the required minimum
+
+The brief requires customers, drivers, and trips. Two more were added.
+
+**`trip_driver_offers`** — `trips.driver_id` records who *won*; this records who
+was *asked*. Without it: you can't audit the fan-out, you can't tell "never
+offered" (403) from "lost the race" (409), you can't validate accept eligibility
+at all, and you have no evidence the batch was issued fairly. Each offer carries
+its own status, so every driver's outcome has a terminal state — `accepted` for
+the winner, `closed` for the rest. `offered_at` is shared across a batch by
+construction, which is what makes the fairness claim checkable rather than
+asserted.
+
+**`trip_events`** — `trips.status` is a *current* value with no history. It can't
+answer how long the driver took to arrive, whether a transition was skipped, or
+who caused a change. Append-only (`created_at` only), one row per transition,
+recording `from_status`, `to_status`, and the actor. Statuses are stored as raw
+strings rather than enum-cast so historical rows survive an enum rename — an
+audit log that changes meaning retroactively isn't an audit log.
 
 **`trips.driver_id` nullable is the design.** A trip is born with no driver; the
 accept operation is the moment it goes from null to a value, and
@@ -565,82 +647,253 @@ returned — far more latency headroom than a synchronous endpoint.
 
 ## Scaling
 
-What breaks → the metric that signals it → what to do.
+The brief asks about 10,000 drivers, 100,000 drivers, and 10x traffic. The
+honest answer is that the current architecture has been measured at one scale
+and reasoned about at the others, so what follows is a monitoring plan rather
+than a build plan.
 
-| Layer | Breaks | Metric | Action |
-|---|---|---|---|
-| **DB connections** *(first to break)* | Each PHP worker holds a connection; Postgres forks per connection | `pg_stat_activity` near `max_connections` | PgBouncer, transaction mode — higher leverage than any replica |
-| **Location writes** *(real pressure point)* | 100–200 writes/sec at 1k drivers, on rows dispatch also reads | >~100 updates/sec; autovacuum falling behind | Current position → Redis `GEOADD`/`GEOSEARCH`, Postgres as durable record |
-| **Geo query** | Distance computed per candidate row | `EXPLAIN ANALYZE` >~50 ms, or >2,000 rows removed by filter | Bounding-box prefilter + index on `(status, latitude, longitude)` |
-| **PostGIS** | — | A *second* spatial workload: geofencing, service areas, true KNN | Workload variety justifies it, not row count |
-| **Read load** | Read queries saturate CPU | DB CPU >70% sustained | Read replicas — but route read-after-write (incl. idempotency replay) to the primary |
-| **Write volume** | `trip_events` grows unbounded | Write latency climbing | Partition `trip_events` by time; shard by city (dispatch is inherently local) |
-| **Queues** | Dispatch backs up, drivers get offers late | Queue wait >few seconds | Horizon autoscaling; **separate queues by priority** — dispatch is latency-critical, notifications aren't |
-| **WebSockets** | One Reverb node caps at a few thousand connections | Connection count near capacity | Horizontal Reverb + Redis pub/sub backplane, or managed Pusher/Ably |
-| **App tier** | FPM workers saturate | Active workers >80% of `pm.max_children` | Horizontal scale — the API is stateless |
-| **Maps APIs** | Rate limits and cost | Approaching quota | Cache geocoding, batch, precompute routes |
+**At ~10,000 drivers**, no change is expected. The geo query is milliseconds
+against an available-driver set that a 5 km radius keeps small regardless of
+fleet size, and a single app node with one Postgres instance carries it. The
+operational job at this scale is establishing baselines, so later movement is
+recognisable.
 
-**Bounding-box caveat:** the box must be *wider* than the radius (longitude
-degrees shrink by `cos(latitude)`). A narrow box silently drops eligible drivers,
-and a silent under-fetch in dispatch is worse than a slow query.
+**At ~100,000 drivers and 10x traffic**, pressure is likely to appear somewhere
+— but *which* layer binds first depends on traffic shape, not driver count. A
+fleet that is mostly offline behaves very differently from one that is mostly
+active and reporting location. So the approach is to watch the metrics below and
+act on whichever moves.
+
+The principle: **measure, confirm the bottleneck, apply the smallest fix** —
+not "reached 100k rows, therefore add infrastructure."
+
+| Layer | What we monitor | Trigger to investigate |
+|---|---|---|
+| **Database connections** | `pg_stat_activity` count vs `max_connections` | Sustained use above ~70% of the limit, or "too many clients" errors |
+| **Driver locations** | Location update rate; write latency on `drivers`; autovacuum lag / dead tuples | Location writes becoming the dominant write workload on the table |
+| **Nearby-driver query** | `EXPLAIN ANALYZE`; this query's share of `pg_stat_statements.total_exec_time` | Consistently past ~50 ms, or climbing into the top few queries by total time |
+| **Queues** | Queue depth; job wait time; job processing time | Wait time growing beyond a few seconds — drivers receiving offers late |
+| **Application tier** | PHP-FPM active workers vs `pm.max_children`; p95/p99 latency; CPU | Workers sustained above ~80% capacity, or latency rising while DB time stays flat |
+| **Real-time** | Concurrent WebSocket connections; Reverb process memory | Connections approaching what a single node holds |
+| **Redis** | Memory usage; command latency | Memory pressure or evictions once it carries queue, cache, and locations together |
+
+**Next actions, once a trigger fires:**
+
+- **Connections** — connection pooling (PgBouncer in transaction mode). Worth
+  noting this is the one constraint that gets *worse* when you scale the app
+  tier: Postgres forks a process per connection, each PHP worker holds one, and
+  adding app nodes multiplies them. It tends to bite before CPU or query time do.
+- **Location writes** — move the hot path to Redis (`GEOADD`/`GEOSEARCH`), keep
+  Postgres as durable storage written asynchronously. Location updates are
+  high-frequency and almost entirely overwritten data: the least valuable thing
+  to keep in a relational write path.
+- **Geo query** — bounding-box prefilter with an index on
+  `(status, latitude, longitude)`, so the trig runs on a narrowed candidate set
+  rather than every available driver.
+- **Queues** — more workers, and separate queues by priority. Dispatch is
+  latency-critical; notifications are not, and they shouldn't share a lane.
+- **Application tier** — horizontal scale behind a load balancer. The API is
+  stateless, so this is replication rather than redesign.
+- **Real-time** — additional Reverb instances with a shared pub/sub backplane, so
+  a broadcast from any app node reaches clients connected to any node.
+
+**On the bounding box specifically**, since it is the one item with measurements
+behind it: Haversine-only is the current implementation and is comfortably fast
+at the workloads observed. The trigger is measured latency, not row count — a
+fleet can grow substantially without the *in-radius candidate set* growing,
+which is what the query actually scans. If it does become the bottleneck, the box
+must be computed **wider** than the radius (longitude degrees shrink by
+`cos(latitude)`); a box that is too narrow silently drops eligible drivers near
+the boundary, and a silent under-fetch in dispatch is worse than a slow query.
+
+**PostGIS** is a separate decision from the bounding box. It is justified by
+workload *variety* — a second spatial query type such as service-area polygons or
+true nearest-neighbour search — not by row count. A single nearest-driver query
+does not warrant the operational cost.
+
+**Rate limiting** is not needed today, but the location endpoint is the realistic
+candidate: it is the highest-frequency write in the system and the easiest to
+abuse. If per-driver update rates show a client misbehaving, a targeted limit on
+that endpoint is the proportionate response.
+
+### Where the signals come from
+
+The table above says *what* to watch. Three layers supply it, and they answer
+different questions rather than overlapping:
+
+| Layer | Tool | Answers |
+|---|---|---|
+| Infrastructure | **Azure Monitor** | App Service CPU, memory, instance count; PostgreSQL `active_connections` |
+| Database / query | **`pg_stat_statements`**, `EXPLAIN ANALYZE` | Which queries cost the most cumulatively; whether the nearby-driver query is actually expensive |
+| Application | **Laravel Pulse** *(future — see below)* | Which requests, queries, and jobs are slow from Laravel's own perspective |
+
+The first two need no application code. `active_connections` in Azure Monitor
+answers the most likely first bottleneck for free, and `pg_stat_statements` is
+what would settle whether the geo query deserves optimising — both are available
+the moment the app is deployed.
+
+### Laravel Pulse — a future addition
+
+**Pulse is not currently installed, and the current architecture does not need
+it.** It is documented here because it is the natural next step for
+application-level observability, and because it has a prerequisite this project
+deliberately does not have yet.
+
+Pulse would show slow HTTP requests, slow database queries, slow job execution,
+queue activity, and exception counts — the Laravel-side view that neither Azure
+Monitor nor Postgres statistics provide. It answers "which endpoint is slow" and
+"which job is taking too long," where Azure Monitor answers "is the server
+saturated" and `pg_stat_statements` answers "which query is expensive."
+
+**The prerequisite is authentication.** The Pulse dashboard exposes request
+paths, query text, and exception details; it must never be publicly reachable.
+Its route is protected by a gate that checks the authenticated user is an
+authorised internal one — which this project cannot implement today, since
+`customer_id` and `driver_id` are passed in requests and trusted.
+
+```
+Authenticated internal user
+        ↓
+Authorization check (Pulse gate)
+        ↓
+Pulse dashboard
+```
+
+So the progression is:
+
+1. Add real authentication and authorization
+2. Install and configure Pulse — it stores in the existing PostgreSQL database,
+   so no new infrastructure is required
+3. Gate the dashboard route to authorised internal users only
+4. Tune recorders and sampling, since Pulse writes to the same database it
+   observes
+5. Watch slow requests, queries, jobs, queues, and exceptions
+6. Use what it shows to confirm a real bottleneck before provisioning anything
+
+Step 6 is the point. Pulse is not a scaling change — it is what makes the
+scaling decisions in this section evidence-based rather than speculative:
+**measure, confirm the bottleneck, apply the smallest appropriate fix.**
 
 ---
 
 ## Azure
 
+The architecture below runs the application **as it exists today** — nothing
+more. No Redis, no PgBouncer, no Front Door, no Horizon. Each of those solves a
+problem this system has not yet demonstrated, and provisioning them up front
+would mean paying for and operating infrastructure with no evidence it is
+needed.
+
+Four resources, three of them the same service type:
+
 ```mermaid
 flowchart TB
     Clients([Mobile clients])
-    FD[Front Door<br/>TLS · WAF · WebSocket upgrade]
-    API[App Service<br/>Laravel API]
-    RVB[Container Apps<br/>Reverb · sticky sessions]
-    JOBS[Container Apps Jobs<br/>Horizon · scale on queue length]
-    PG[(PostgreSQL Flexible Server<br/>PgBouncer · read replica)]
-    RDS[(Azure Cache for Redis<br/>queue · cache · pub/sub)]
-    OBS[App Insights · Key Vault · Blob]
+
+    API["App Service<br/>Laravel API"]
+    WORKER["App Service<br/>queue:work · dispatch + broadcasts"]
+    RVB["App Service<br/>Reverb · WebSockets enabled"]
+
+    PG[("PostgreSQL Flexible Server<br/>application data · jobs table")]
+
+    Clients -->|HTTPS| API
+    Clients -->|WSS| RVB
+
+    API --> PG
+    API -.->|enqueue| PG
+    WORKER -->|poll jobs| PG
+    WORKER -->|read drivers · write offers| PG
+    WORKER -->|publish| RVB
+```
+
+**Why each piece:**
+
+| Component | Azure service | Why this one |
+|---|---|---|
+| Laravel API | App Service (Linux) | Managed PHP hosting, autoscale built in, no container pipeline to maintain |
+| Queue worker | App Service (Linux) | A second instance with `queue:work` as its startup command — same runtime, no new service type to learn |
+| Reverb | App Service (Linux) | Long-lived process; WebSockets are a toggle on App Service. Needs `ARR affinity` on so a client stays with one instance |
+| Database | Database for PostgreSQL Flexible Server | Managed Postgres with the extensions and version control this app needs |
+
+Secrets go in **App Service application settings**, which are enough at this
+size; Key Vault becomes worthwhile once secrets are shared across resources or
+need rotation policies.
+
+Container Apps would work equally well for the worker and Reverb, and is the
+better choice once you want scale-to-zero or scaling on queue depth. Three App
+Services is simpler to reason about for a first deployment.
+
+**One thing that needs care regardless of size:** migrations must run as a
+**release-gated step**, not on container or app startup. Otherwise every
+instance that starts races the others to migrate the same database.
+
+### Future Azure evolution
+
+The baseline above is intentionally minimal — it is what the application needs
+today, not what it might need eventually. Infrastructure gets added when
+monitoring confirms a specific component is the constraint.
+
+[Scaling](#scaling) covers *when*: which metric, what signal, what threshold.
+This subsection covers *what*: the Azure resource or architectural change that
+answers each problem once it is confirmed.
+
+| Azure change | Introduced when |
+|---|---|
+| **Connection pooling** — PgBouncer as a sidecar, or Flexible Server's built-in pooler | Database connections become the constraint |
+| **Azure Cache for Redis** — current driver position moves to Redis GEO (`GEOADD`/`GEOSEARCH`); Postgres stays the durable record | Location writes become a heavy share of database work |
+| **Scale out the API App Service** | Application tier capacity becomes insufficient |
+| **Scale out the worker App Service**, split by priority queue | Queue processing falls behind |
+| **Additional Reverb instances + Redis pub/sub backplane** | Reverb approaches its connection capacity |
+| **Azure Front Door** | A global entry point, WAF, or edge WebSocket handling becomes necessary |
+
+Three things worth noting about that list.
+
+**The nearby-driver query is deliberately absent.** If it becomes slow, the fix
+is a bounding-box prefilter and an index — application and schema changes, no new
+Azure resource. Not every scaling problem is an infrastructure problem.
+
+**Redis would arrive for one of two unrelated reasons** — driver locations, or
+the Reverb backplane. Whichever comes first, the second reuses the same instance.
+Once Redis exists, moving the queue onto it becomes cheap, and **Horizon** then
+becomes worthwhile for queue visibility and worker autoscaling. None of that is
+justified before Redis is there for its own reason.
+
+**Scaling Reverb is the only step with a hard prerequisite.** Running multiple
+instances without a shared backplane fails silently: a client connected to
+instance A never receives an event published from instance B. Everything else in
+the table can be added independently.
+
+If every trigger above eventually fires, the architecture lands here — shown to
+make the destination concrete, **not** as a target to build toward:
+
+```mermaid
+flowchart TB
+    Clients([Mobile clients])
+    FD["Front Door<br/>TLS · WAF · WebSocket upgrade"]
+
+    API["App Service<br/>Laravel API · scaled out"]
+    WORKER["Container Apps Jobs<br/>Horizon · scale on queue depth"]
+    RVB["Container Apps<br/>Reverb · multiple instances"]
+
+    PG[("PostgreSQL Flexible Server<br/>PgBouncer")]
+    RDS[("Azure Cache for Redis<br/>driver locations · queue · pub/sub")]
 
     Clients --> FD
     FD --> API
     FD --> RVB
+
     API --> PG
     API --> RDS
-    JOBS --> PG
-    JOBS --> RDS
-    RVB -.backplane.-> RDS
-    API -.-> OBS
-    JOBS -.-> OBS
-    RVB -.-> OBS
+    WORKER --> PG
+    WORKER --> RDS
+    RVB -.->|backplane| RDS
 ```
 
-**Migration order:** database (with a dump/restore rehearsal) → Redis → API
-behind Front Door → workers → Reverb last, since it's the only stateful tier
-needing sticky routing.
+Every box beyond the four in the baseline was added because a metric said so.
+None of them are there on day one.
 
-**Two things needing care:** WebSockets require sticky sessions and Front Door
-WebSocket-upgrade config; multiple Reverb replicas need the Redis backplane or
-clients on replica A miss events published from replica B. And migrations must be
-a **release-gated step**, not run on container startup — otherwise every
-autoscaled instance races to migrate the same database.
-
----
-
-## Deliberate omissions
-
-Each was considered, with the trigger that would change the decision.
-
-| Omitted | Why / trigger |
-|---|---|
-| **Authentication** | Explicitly permitted by the brief. Also why the broadcast channel is public. |
-| **Offer expiry / timeout** | A trip nobody accepts stays `searching` forever — a known dead end. Needs a scheduled expiry job, re-dispatch, and a `no_driver_found` state. |
-| **Trip cancellation** | No cancel endpoint or `cancelled` status; the enum covers the happy path. |
-| **One-active-trip-per-driver constraint** | Enforced in practice via `busy`, not at the DB level. Needs a partial unique index. |
-| **`request_hash` on idempotency keys** | Same key + different payload returns the original trip. Client misuse, not a correctness issue. |
-| **Index on `trips.driver_id`** | Nothing filters by it and drivers are never deleted. *Trigger:* a driver trip-history endpoint or deletion path. |
-| **Bounding box on the geo query** | Measured, not needed at plausible volumes. *Trigger:* `EXPLAIN ANALYZE` >~50 ms. |
-| **PostGIS / Redis GEO** | *Trigger:* a second spatial workload; location writes >~100/sec. |
-| **Real push notifications** | `NotifyDriverOfOffer` logs instead of calling FCM/APNs — mocking permitted. Job structure, retries, and parallel fan-out are real; only the transport is stubbed. |
-| **Live location broadcasting** | Only status transitions. Live tracking needs a separate higher-frequency channel, deliberately not mixed in. |
-| **State-machine package** | A minimal `match` expression enforces sequential transitions. |
-| **Pricing, payments, ratings, fleet management** | Outside the brief. |
+The principle throughout: **the current infrastructure stays simple — measure
+first, confirm the bottleneck, then add the smallest appropriate Azure
+component.**
 
 ---

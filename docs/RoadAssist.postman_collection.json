@@ -1,0 +1,546 @@
+{
+  "info": {
+    "_postman_id": "69126152-fc29-4d2a-904b-38abcaaf9dd0",
+    "name": "RoadAssist",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "22113518",
+    "_collection_link": "https://go.postman.co/collection/22113518-69126152-fc29-4d2a-904b-38abcaaf9dd0?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Trip",
+      "item": [
+        {
+          "name": "Accept Trip",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "driver_id",
+                  "value": "2",
+                  "type": "text",
+                  "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://road-assist.test/api/v1/trips/1/accept",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "1",
+                "accept"
+              ]
+            },
+            "description": "## Accept Trip Request\n\nThis endpoint allows a driver to accept a specific trip identified by its unique trip ID. The request is sent via an HTTP POST method to the URL: `https://road-assist.test/api/v1/trips/{trip_id}/accept`, where `{trip_id}` is the ID of the trip being accepted.\n\n### Request Parameters\n\nThe request body must include the following parameter:\n\n- **driver_id** (string): The unique identifier of the driver accepting the trip. This parameter is required and should be provided in the form-data format.\n    \n\n### Response Structure\n\nUpon successful acceptance of the trip, the server will respond with a confirmation message and relevant trip details. The structure of the response typically includes:\n\n- **status**: Indicates the success or failure of the request.\n    \n- **message**: A descriptive message regarding the acceptance of the trip.\n    \n- **trip_details**: An object containing information about the trip, such as the destination, estimated time of arrival, and other relevant trip data.\n    \n\n### Example\n\n#### Request\n\n``` plaintext\nPOST /api/v1/trips/13/accept\nContent-Type: multipart/form-data\ndriver_id=12345\n\n ```\n\n#### Response\n\n``` json\n{\n  \"status\": \"success\",\n  \"message\": \"Trip accepted successfully\",\n  \"trip_details\": {\n    \"destination\": \"123 Main St\",\n    \"eta\": \"15 minutes\"\n  }\n}\n\n ```\n\nEnsure that the `driver_id` is valid and corresponds to an existing driver in the system to avoid errors during the acceptance process."
+          },
+          "response": [
+            {
+              "name": "Accept Trip",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "driver_id",
+                      "value": "1",
+                      "type": "text",
+                      "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "https://road-assist.test/api/v1/trips/13/accept",
+                  "protocol": "https",
+                  "host": [
+                    "road-assist",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "trips",
+                    "13",
+                    "accept"
+                  ]
+                }
+              },
+              "_postman_previewlanguage": null,
+              "header": null,
+              "cookie": [],
+              "body": null
+            }
+          ]
+        },
+        {
+          "name": "StoreTrip",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "idempotency-key",
+                "value": "9f8b2c14-5d3e-4a71-b6c9-1e2f3a4b5c6d",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "customer_id",
+                  "value": "1",
+                  "type": "text",
+                  "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                },
+                {
+                  "key": "pickup_latitude",
+                  "value": "24.4539",
+                  "type": "text",
+                  "uuid": "05911a3e-1d68-41a5-8abd-ed3b3704db54"
+                },
+                {
+                  "key": "pickup_longitude",
+                  "value": "54.3773",
+                  "type": "text",
+                  "uuid": "93947ffe-2320-42d1-87fe-54a909c7f8be"
+                },
+                {
+                  "key": "type",
+                  "value": "normal",
+                  "type": "text",
+                  "uuid": "ca7f9045-aa88-4772-b0cc-608dc9a46d95"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://road-assist.test/api/v1/trips",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips"
+              ]
+            },
+            "description": "## Create Trip Request\n\nThis endpoint allows users to create a new trip in the system. By providing specific details about the trip, users can initiate a request for assistance.\n\n### Request Parameters\n\nThe request must include the following parameters in the form-data body:\n\n- **customer_id** (string): A unique identifier for the customer requesting the trip.\n    \n- **pickup_latitude** (string): The latitude coordinate for the pickup location.\n    \n- **pickup_longitude** (string): The longitude coordinate for the pickup location.\n    \n- **type** (string): The type of trip being requested (e.g., standard, premium).\n    \n\n### Response Structure\n\nUpon a successful request, the API will return a response that includes details about the created trip. The structure of the response will typically contain information such as the trip ID, status, and any other relevant details associated with the trip.\n\nEnsure that all parameters are provided correctly to avoid errors in trip creation."
+          },
+          "response": [
+            {
+              "name": "StoreTrip",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "idempotency-key",
+                    "value": "9f8b2c14-5d3e-4a71-b6c9-1e2f3a4b5c6a",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "customer_id",
+                      "value": "1",
+                      "type": "text",
+                      "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                    },
+                    {
+                      "key": "pickup_latitude",
+                      "value": "24.4539",
+                      "type": "text",
+                      "uuid": "05911a3e-1d68-41a5-8abd-ed3b3704db54"
+                    },
+                    {
+                      "key": "pickup_longitude",
+                      "value": "54.3773",
+                      "type": "text",
+                      "uuid": "93947ffe-2320-42d1-87fe-54a909c7f8be"
+                    },
+                    {
+                      "key": "type",
+                      "value": "normal",
+                      "type": "text",
+                      "uuid": "ca7f9045-aa88-4772-b0cc-608dc9a46d95"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "https://road-assist.test/api/v1/trips",
+                  "protocol": "https",
+                  "host": [
+                    "road-assist",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "trips"
+                  ]
+                }
+              },
+              "_postman_previewlanguage": "",
+              "header": [],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Update Status Trip",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "driver_id",
+                  "value": "2",
+                  "type": "text",
+                  "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                },
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "type": "text",
+                  "uuid": "57c808da-964e-4e73-9aef-1f5efd501e8e"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://road-assist.test/api/v1/trips/1/status",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "1",
+                "status"
+              ]
+            },
+            "description": "## Update Status Trip\n\nUpdates the status of a specific trip. This endpoint allows updating trip progress by setting the current status along with the associated driver.\n\n---\n\n### Endpoint\n\n**Method:** `PATCH`\n**URL:** `https://road-assist.test/api/v1/trips/1/status`\n\n---\n\n### Request Headers\n\n| Header | Value |\n|---|---|\n| `Accept` | `application/json` |\n| `Content-Type` | `application/json` |\n\n---\n\n### Request Body\n\n**Body Type:** `multipart/form-data`\n\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `driver_id` | integer | ✅ | The ID of the driver associated with the trip. **Example:** `2` |\n| `status` | string | ✅ | The new status of the trip. **Possible values:** `started`, `completed`, `arrived` |\n\n---\n\n### Example Response\n\n**Status:** `200 OK`\n\n```json\n{\n  \"data\": {\n    \"id\": 1,\n    \"status\": \"completed\",\n    \"type\": \"normal\",\n    \"pickup\": {\n      \"latitude\": 24.4539,\n      \"longitude\": 54.3773\n    },\n    \"created_at\": \"2026-08-22 20:10:14\"\n  }\n}\n```\n\n#### Response Fields\n\n| Field | Type | Description |\n|---|---|---|\n| `data.id` | integer | The unique identifier of the trip |\n| `data.status` | string | The updated status of the trip |\n| `data.type` | string | The type of the trip (e.g., `normal`) |\n| `data.pickup.latitude` | float | Latitude of the pickup location |\n| `data.pickup.longitude` | float | Longitude of the pickup location |\n| `data.created_at` | string | Timestamp when the trip was created |"
+          },
+          "response": [
+            {
+              "name": "Update Status Trip",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "driver_id",
+                      "value": "2",
+                      "type": "text",
+                      "uuid": "d451182e-6fd8-43fd-89e9-e7f322e5fe29"
+                    },
+                    {
+                      "key": "status",
+                      "value": "started",
+                      "type": "text",
+                      "uuid": "57c808da-964e-4e73-9aef-1f5efd501e8e"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "https://road-assist.test/api/v1/trips/1/status",
+                  "protocol": "https",
+                  "host": [
+                    "road-assist",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "trips",
+                    "1",
+                    "status"
+                  ]
+                }
+              },
+              "_postman_previewlanguage": null,
+              "header": null,
+              "cookie": [],
+              "body": null
+            }
+          ]
+        },
+        {
+          "name": "Get Trip",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "https://road-assist.test/api/v1/trips/1",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "trips",
+                "1"
+              ]
+            },
+            "description": "## Get Trip Details\n\nThis endpoint retrieves detailed information about a specific trip identified by its unique ID.\n\n### Request\n\n- **Method**: GET\n    \n- **URL**: `https://road-assist.test/api/v1/trips/{tripId}`\n    \n\n#### Path Parameters\n\n- `tripId` (required): The unique identifier for the trip. In this example, it is `1`.\n    \n\n### Response\n\nUpon a successful request, the server will respond with a JSON object containing the details of the trip. The structure of the response includes a `data` object with the following properties:\n\n- `id` (number): The unique identifier of the trip.\n    \n- `status` (string): The current status of the trip.\n    \n- `type` (string): The type of trip.\n    \n- `pickup` (object): An object containing:\n    \n    - `latitude` (number): The latitude of the pickup location.\n        \n    - `longitude` (number): The longitude of the pickup location.\n        \n- `created_at` (string): The timestamp of when the trip was created.\n    \n\n### Example Response\n\n``` json\n{\n  \"data\": {\n    \"id\": 1,\n    \"status\": \"completed\",\n    \"type\": \"standard\",\n    \"pickup\": {\n      \"latitude\": 40.7128,\n      \"longitude\": -74.0060\n    },\n    \"created_at\": \"2023-10-01T09:00:00Z\"\n  }\n}\n\n ```\n\nThis endpoint is useful for retrieving comprehensive details about a specific trip, allowing users to track and manage their travel history effectively.\n\nThis endpoint retrieves detailed information about a specific trip identified by its unique ID.\n\n### Request\n\n- **Method**: GET\n    \n- **URL**: `https://road-assist.test/api/v1/trips/{tripId}`\n    \n\n#### Path Parameters\n\n- `tripId` (required): The unique identifier for the trip. In this example, it is `1`.\n    \n\n### Response\n\nUpon a successful request, the server will respond with a JSON object containing the details of the trip. The structure of the response typically includes:\n\n- `id`: The unique identifier of the trip.\n    \n- `destination`: The destination of the trip.\n    \n- `start_time`: The start time of the trip.\n    \n- `end_time`: The end time of the trip.\n    \n- `status`: The current status of the trip.\n    \n- `user`: Information about the user associated with the trip.\n    \n\n### Example Response\n\n``` json\n{\n   \"data\": {\n        \"id\": 1,\n        \"status\": \"started\",\n        \"type\": \"normal\",\n        \"pickup\": {\n            \"latitude\": 24.4539,\n            \"longitude\": 54.3773\n        },\n        \"created_at\": \"2026-08-22 20:10:14\"\n    }\n\n ```\n\nThis endpoint is useful for retrieving comprehensive details about a specific trip, allowing users to track and manage their travel history effectively."
+          },
+          "response": [
+            {
+              "name": "Get Trip",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "https://road-assist.test/api/v1/trips/1",
+                  "protocol": "https",
+                  "host": [
+                    "road-assist",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "trips",
+                    "1"
+                  ]
+                }
+              },
+              "_postman_previewlanguage": "",
+              "header": [],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Get Nearby Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "https://road-assist.test/api/v1/drivers/nearby?latitude=24.4539&longitude=54.3773",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "24.4539"
+                },
+                {
+                  "key": "longitude",
+                  "value": "54.3773"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location For Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "latitude",
+                  "value": "24.4600",
+                  "type": "text",
+                  "uuid": "6580870c-3751-4b87-954b-46dfa66ab3b0"
+                },
+                {
+                  "key": "longitude",
+                  "value": "54.3800",
+                  "type": "text",
+                  "uuid": "978a2cc8-9ef6-4d04-880e-4b611223b877"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://road-assist.test/api/v1/drivers/1/location",
+              "protocol": "https",
+              "host": [
+                "road-assist",
+                "test"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "drivers",
+                "1",
+                "location"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
