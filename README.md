@@ -644,10 +644,3 @@ Each was considered, with the trigger that would change the decision.
 | **Pricing, payments, ratings, fleet management** | Outside the brief. |
 
 ---
-
-## Next steps
-
-1. Offer expiry with re-dispatch — the most user-visible gap
-2. Real authentication, which unlocks private broadcast channels
-3. Trip cancellation with refund/fee rules
-4. Redis GEO once location write volume justifies it
