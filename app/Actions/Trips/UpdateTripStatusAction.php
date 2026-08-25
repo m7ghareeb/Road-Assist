@@ -4,6 +4,7 @@ namespace App\Actions\Trips;
 
 use App\Enums\DriverStatus;
 use App\Enums\TripStatus;
+use App\Events\TripStatusUpdated;
 use App\Exceptions\InvalidTripTransitionException;
 use App\Models\Driver;
 use App\Models\Trip;
@@ -18,7 +19,7 @@ final class UpdateTripStatusAction
 
         throw_unless(self::isValidTransition($from, $to), new InvalidTripTransitionException($from, $to));
 
-        return DB::transaction(function () use ($trip, $from, $to, $driver) {
+        $trip = DB::transaction(function () use ($trip, $from, $to, $driver) {
 
             Trip::query()
                 ->where('id', $trip->id)
@@ -42,6 +43,10 @@ final class UpdateTripStatusAction
 
             return $trip->fresh();
         });
+
+        TripStatusUpdated::dispatch($trip, $from);
+
+        return $trip;
     }
 
     private static function isValidTransition(TripStatus $from, TripStatus $to): bool

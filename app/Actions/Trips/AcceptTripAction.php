@@ -5,6 +5,7 @@ namespace App\Actions\Trips;
 use App\Enums\DriverStatus;
 use App\Enums\TripOfferStatus;
 use App\Enums\TripStatus;
+use App\Events\TripStatusUpdated;
 use App\Exceptions\DriverNotEligibleToAcceptTripException;
 use App\Exceptions\TripAlreadyAssignedException;
 use App\Models\Driver;
@@ -62,6 +63,8 @@ final class AcceptTripAction
 
             return $trip->fresh();
         });
+
+        TripStatusUpdated::dispatch($trip, TripStatus::Searching);
 
         return $trip;
     }

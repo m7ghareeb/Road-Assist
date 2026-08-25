@@ -22,6 +22,7 @@ class TripFactory extends Factory
     public function definition(): array
     {
         return [
+            'idempotency_key'  => $this->faker->uuid(),
             'customer_id'      => Customer::factory(),
             'driver_id'        => Driver::factory(),
             'pickup_latitude'  => $this->faker->latitude(),

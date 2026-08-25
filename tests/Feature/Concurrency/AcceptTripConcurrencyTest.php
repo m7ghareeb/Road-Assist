@@ -1,10 +1,11 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Concurrency;
 
 use App\Enums\DriverStatus;
 use App\Enums\TripOfferStatus;
 use App\Enums\TripStatus;
+use App\Models\Customer;
 use App\Models\Driver;
 use App\Models\Trip;
 use App\Models\TripDriverOffer;
@@ -13,7 +14,6 @@ use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AcceptTripConcurrencyTest extends TestCase
@@ -33,14 +33,27 @@ class AcceptTripConcurrencyTest extends TestCase
         }
     }
 
+    protected function tearDown(): void
+    {
+        // This test drives real concurrent requests through a separately running
+        // server process, so DatabaseTruncation's per-test rows are genuinely
+        // committed (not wrapped in a rolled-back transaction like RefreshDatabase
+        // tests). Without this, they'd persist into whichever test runs next in
+        // the suite. Deleting trips cascades to trip_driver_offers/trip_events.
+        Trip::query()->delete();
+        Driver::query()->delete();
+        Customer::query()->delete();
+
+        parent::tearDown();
+    }
+
     public function test_only_one_driver_can_accept_trip_concurrently(): void
     {
         $this->assertSame('pgsql', DB::connection()->getDriverName());
 
         $trip = Trip::factory()->create([
-            'idempotency_key' => Str::uuid()->toString(),
-            'status'          => TripStatus::Searching->value,
-            'driver_id'       => null,
+            'status'    => TripStatus::Searching->value,
+            'driver_id' => null,
         ]);
 
         $drivers = Driver::factory()
